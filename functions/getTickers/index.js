@@ -5,9 +5,7 @@ const BACKEND_URL =
 
 /**
  * HTTP Cloud Function to get all tickers from Portfolio-Tracker-Backend
- * Proxies GET requests to the backend /api/v1/tickers endpoint.
- *
- * Works at any path: /, /getTickers, etc.
+ * Accepts POST requests and proxies to the backend /api/v1/tickers endpoint.
  *
  * Response:
  * {
@@ -17,7 +15,7 @@ const BACKEND_URL =
  */
 functions.http("getTickers", async (req, res) => {
   res.set("Access-Control-Allow-Origin", "*");
-  res.set("Access-Control-Allow-Methods", "GET, OPTIONS");
+  res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
 
   if (req.method === "OPTIONS") {
@@ -25,8 +23,8 @@ functions.http("getTickers", async (req, res) => {
     return;
   }
 
-  if (req.method !== "GET") {
-    res.status(405).json({ error: "Method not allowed. Use GET." });
+  if (req.method !== "POST") {
+    res.status(405).json({ error: "Method not allowed. Use POST." });
     return;
   }
 
