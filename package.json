@@ -25,6 +25,8 @@
   },
   "homepage": "https://github.com/devshah17/Portfolio-Tracker-Functions#readme",
   "dependencies": {
-    "@google-cloud/functions-framework": "^3.4.0"
+    "@google-cloud/functions-framework": "^3.4.0",
+    "axios": "^1.13.5",
+    "yahoo-finance2": "^3.13.1"
   }
 }
