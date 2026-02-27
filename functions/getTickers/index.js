@@ -16,18 +16,15 @@ const BACKEND_URL =
  * }
  */
 functions.http("getTickers", async (req, res) => {
-  // Enable CORS
   res.set("Access-Control-Allow-Origin", "*");
   res.set("Access-Control-Allow-Methods", "GET, OPTIONS");
   res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
 
-  // Handle preflight request
   if (req.method === "OPTIONS") {
     res.status(204).send("");
     return;
   }
 
-  // Only accept GET requests
   if (req.method !== "GET") {
     res.status(405).json({ error: "Method not allowed. Use GET." });
     return;
