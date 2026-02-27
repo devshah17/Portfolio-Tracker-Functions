@@ -1,0 +1,30 @@
+{
+  "name": "portfolio-tracker-functions",
+  "version": "1.0.0",
+  "description": "Portfolio-Tracker-Functions",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "functions-framework --target=getTickers --source=./functions/getTickers --port=8080",
+    "dev": "functions-framework --target=getTickers --source=./functions/getTickers --port=8080",
+    "deploy:getTickers": "gcloud functions deploy getTickers --runtime nodejs20 --trigger-http --allow-unauthenticated --source=./functions/getTickers --entry-point=getTickers --env-vars-file=.env.yaml"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/devshah17/Portfolio-Tracker-Functions.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/devshah17/Portfolio-Tracker-Functions/issues"
+  },
+  "homepage": "https://github.com/devshah17/Portfolio-Tracker-Functions#readme",
+  "dependencies": {
+    "@google-cloud/functions-framework": "^3.4.0"
+  }
+}
