@@ -1,13 +1,21 @@
 import functions from "@google-cloud/functions-framework";
-import express from "express";
-
-const app = express();
-app.use(express.json());
 
 const BACKEND_URL =
   process.env.PORTFOLIO_TRACKER_BACKEND_URL || "http://localhost:3001";
 
-const handler = async (req, res) => {
+/**
+ * HTTP Cloud Function to get all tickers from Portfolio-Tracker-Backend
+ * Proxies GET requests to the backend /api/v1/tickers endpoint.
+ *
+ * Works at any path: /, /getTickers, etc.
+ *
+ * Response:
+ * {
+ *   "message": "...",
+ *   "data": [...] // Array of ticker objects
+ * }
+ */
+functions.http("getTickers", async (req, res) => {
   // Enable CORS
   res.set("Access-Control-Allow-Origin", "*");
   res.set("Access-Control-Allow-Methods", "GET, OPTIONS");
@@ -16,6 +24,12 @@ const handler = async (req, res) => {
   // Handle preflight request
   if (req.method === "OPTIONS") {
     res.status(204).send("");
+    return;
+  }
+
+  // Only accept GET requests
+  if (req.method !== "GET") {
+    res.status(405).json({ error: "Method not allowed. Use GET." });
     return;
   }
 
@@ -31,26 +45,4 @@ const handler = async (req, res) => {
       message: error.message,
     });
   }
-};
-
-// Respond to both root and /getTickers paths
-app.get("/", handler);
-app.get("/getTickers", handler);
-app.options("*", (req, res) => {
-  res.set("Access-Control-Allow-Origin", "*");
-  res.set("Access-Control-Allow-Methods", "GET, OPTIONS");
-  res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
-  res.status(204).send("");
 });
-
-/**
- * HTTP Cloud Function to get all tickers from Portfolio-Tracker-Backend
- * Accepts GET requests and proxies to the backend /api/v1/tickers endpoint
- *
- * Response:
- * {
- *   "message": "...",
- *   "data": [...] // Array of ticker objects
- * }
- */
-functions.http("getTickers", app);
