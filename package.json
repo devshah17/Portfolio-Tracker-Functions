@@ -25,6 +25,7 @@
   },
   "homepage": "https://github.com/devshah17/Portfolio-Tracker-Functions#readme",
   "dependencies": {
-    "@google-cloud/functions-framework": "^3.4.0"
+    "@google-cloud/functions-framework": "^3.4.0",
+    "express": "^4.21.2"
   }
 }
