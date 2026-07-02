@@ -3,7 +3,7 @@ import YahooFinance from "yahoo-finance2";
 import axios from "axios";
 
 // yahoo-finance2 v3: must instantiate the class
-const yf = new YahooFinance();
+const yf = new YahooFinance({ suppressNotices: ["yahooSurvey"] });
 
 const BACKEND_URL =
   process.env.PORTFOLIO_TRACKER_BACKEND_URL || "http://localhost:3001";
@@ -16,30 +16,60 @@ const MF_API_URL = "https://api.mfapi.in/mf/latest";
 async function fetchStockPrices(stocks) {
   if (!stocks?.length) return new Map();
 
-  const symbols = stocks.map((s) =>
-    s.currency === "INR" ? `${s.tickerName}.NS` : s.tickerName,
-  );
+  const symbols = stocks.map((s) => s.tickerName);
+  console.log("symbols", symbols);
 
   try {
-    const results = await yf.quote(symbols, {
-      fields: ["symbol", "regularMarketPrice", "currency"],
-    });
+    const BATCH_SIZE = 25;
+    const batches = [];
+    for (let i = 0; i < symbols.length; i += BATCH_SIZE) {
+      batches.push(symbols.slice(i, i + BATCH_SIZE));
+    }
+
+    const batchPromises = batches.map((batch) =>
+      yf.quote(batch).catch((err) => {
+        console.error(`Error fetching batch ${batch}:`, err?.message || err);
+        return [];
+      }),
+    );
+
+    const results = await Promise.all(batchPromises);
+
+    const resultsArr = results.flat().filter(Boolean);
 
     const priceMap = new Map();
-
-    const resultsArr = Array.isArray(results) ? results : [results];
 
     for (const result of resultsArr) {
       if (!result?.symbol) continue;
 
-      // Handle cases where regularMarketPrice might be missing
       const price =
         result.regularMarketPrice ??
         result.price ??
         result.regularMarketDayHigh ??
         null;
 
-      priceMap.set(result.symbol.replace(".NS", ""), price);
+      const priceMapObj = {
+        price,
+        regularMarketPrice: price,
+        trailingPE: result.trailingPE ?? null,
+        forwardPE: result.forwardPE ?? null,
+        epsTrailingTwelveMonths: result.epsTrailingTwelveMonths ?? null,
+        epsForward: result.epsForward ?? null,
+        priceToBook: result.priceToBook ?? null,
+        marketCap: result.marketCap ?? null,
+        dividendYield: result.dividendYield ?? null,
+        trailingAnnualDividendYield: result.trailingAnnualDividendYield ?? null,
+        fiftyDayAverage: result.fiftyDayAverage ?? null,
+        twoHundredDayAverage: result.twoHundredDayAverage ?? null,
+        fiftyTwoWeekHigh: result.fiftyTwoWeekHigh ?? null,
+        fiftyTwoWeekLow: result.fiftyTwoWeekLow ?? null,
+        regularMarketVolume: result.regularMarketVolume ?? null,
+        averageDailyVolume3Month: result.averageDailyVolume3Month ?? null,
+        averageAnalystRating: result.averageAnalystRating ?? null,
+      };
+
+      priceMap.set(result.symbol, priceMapObj);
+      priceMap.set(result.symbol.replace(".NS", ""), priceMapObj);
     }
 
     return priceMap;
@@ -49,10 +79,6 @@ async function fetchStockPrices(stocks) {
   }
 }
 
-/**
- * Fetch all latest NAVs from mfapi.in.
- * Returns a Map: isinGrowth -> nav (number)
- */
 async function fetchMFPrices() {
   try {
     const { data: mfList } = await axios.get(MF_API_URL, {
@@ -78,18 +104,6 @@ async function fetchMFPrices() {
   }
 }
 
-/**
- * HTTP Cloud Function to get all tickers from Portfolio-Tracker-Backend,
- * enriched with live prices from Yahoo Finance (stocks) and mfapi.in (MFs).
- *
- * Response:
- * {
- *   "message": "...",
- *   "data": [
- *     { ...tickerFields, "price": <number | null> }
- *   ]
- * }
- */
 functions.http("getTickers", async (req, res) => {
   res.set("Access-Control-Allow-Origin", "*");
   res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
@@ -106,7 +120,6 @@ functions.http("getTickers", async (req, res) => {
   }
 
   try {
-    // 1. Fetch all tickers from backend
     const backendResponse = await fetch(`${BACKEND_URL}/api/v1/tickers`);
     const backendData = await backendResponse.json();
 
@@ -116,28 +129,68 @@ functions.http("getTickers", async (req, res) => {
 
     const tickers = backendData.data;
 
-    // 2. Split by type
     const stocks = tickers.filter((t) => t.type === "Stock");
     const mfs = tickers.filter((t) => t.type === "MF");
 
-    // 3. Fetch stock prices & MF NAVs in parallel
     const [stockPriceMap, mfIsinMap] = await Promise.all([
       fetchStockPrices(stocks),
       mfs.length > 0 ? fetchMFPrices() : Promise.resolve(new Map()),
     ]);
 
-    // 4. Enrich tickers with prices
     const enrichedData = tickers.map((ticker) => {
-      let price = null;
-
       if (ticker.type === "Stock") {
-        price = stockPriceMap.get(ticker.tickerName) ?? null;
+        const stockInfo =
+          stockPriceMap.get(ticker.tickerName) ||
+          stockPriceMap.get(ticker.tickerName.replace(".NS", "")) ||
+          stockPriceMap.get(`${ticker.tickerName}.NS`) ||
+          null;
+
+        return {
+          ...ticker,
+          price: stockInfo?.price ?? null,
+          regularMarketPrice: stockInfo?.regularMarketPrice ?? null,
+          trailingPE: stockInfo?.trailingPE ?? null,
+          forwardPE: stockInfo?.forwardPE ?? null,
+          epsTrailingTwelveMonths: stockInfo?.epsTrailingTwelveMonths ?? null,
+          epsForward: stockInfo?.epsForward ?? null,
+          priceToBook: stockInfo?.priceToBook ?? null,
+          marketCap: stockInfo?.marketCap ?? null,
+          dividendYield: stockInfo?.dividendYield ?? null,
+          trailingAnnualDividendYield:
+            stockInfo?.trailingAnnualDividendYield ?? null,
+          fiftyDayAverage: stockInfo?.fiftyDayAverage ?? null,
+          twoHundredDayAverage: stockInfo?.twoHundredDayAverage ?? null,
+          fiftyTwoWeekHigh: stockInfo?.fiftyTwoWeekHigh ?? null,
+          fiftyTwoWeekLow: stockInfo?.fiftyTwoWeekLow ?? null,
+          regularMarketVolume: stockInfo?.regularMarketVolume ?? null,
+          averageDailyVolume3Month: stockInfo?.averageDailyVolume3Month ?? null,
+          averageAnalystRating: stockInfo?.averageAnalystRating ?? null,
+        };
       } else if (ticker.type === "MF") {
-        // tickerName is the ISIN — match against isinGrowth from mfapi
-        price = mfIsinMap.get(ticker.tickerName) ?? null;
+        const price = mfIsinMap.get(ticker.tickerName) ?? null;
+        return {
+          ...ticker,
+          price,
+          regularMarketPrice: price,
+          trailingPE: null,
+          forwardPE: null,
+          epsTrailingTwelveMonths: null,
+          epsForward: null,
+          priceToBook: null,
+          marketCap: null,
+          dividendYield: null,
+          trailingAnnualDividendYield: null,
+          fiftyDayAverage: null,
+          twoHundredDayAverage: null,
+          fiftyTwoWeekHigh: null,
+          fiftyTwoWeekLow: null,
+          regularMarketVolume: null,
+          averageDailyVolume3Month: null,
+          averageAnalystRating: null,
+        };
       }
 
-      return { ...ticker, price };
+      return ticker;
     });
 
     res.status(200).json({
